@@ -38,7 +38,6 @@ function generateWebpackConfigForCanister(name, info) {
     mode: "production",
     entry: {
       index: path.join(inputRoot, info.frontend.entrypoint),
-      candid: path.join(outputRoot, 'candid.js'),
     },
     devtool: "source-map",
     optimization: {
@@ -47,10 +46,16 @@ function generateWebpackConfigForCanister(name, info) {
     },
     resolve: {
       alias: aliases,
+      extensions: ['.tsx', '.ts', '.js']
     },
     output: {
       filename: "[name].js",
       path: path.join(outputRoot, "assets"),
+    },
+    module: {
+      rules: [
+        { test: /\.([jt]s)x?$/, loader: "ts-loader", exclude: /node_modules/ }
+      ]
     },
     plugins: [
     ],
