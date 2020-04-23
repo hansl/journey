@@ -1,7 +1,8 @@
 module {
   public type User = {
-    id: Nat;
+    id: Principal;
     name: Text;
+    editor: Bool;
     description: Text;
   };
 
@@ -26,7 +27,7 @@ module {
     id: Nat;
 
     // The person who created the entry.
-    author: Nat;
+    author: Principal;
 
     // The title of the entry.
     title: Text;

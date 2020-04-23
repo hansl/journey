@@ -8,19 +8,97 @@ type User = Types.User;
 
 actor {
 
+    var admin: ?Principal = null;
+
     var entries: [InternalEntry] = [];
-    var users: [User] = [{
-        id = 1;
-        name = "Hans Larsen";
-        description = "Only user for now.";
-    }];
+    // TODO: Change this to a hash map.
+    var users: [User] = [];
     var uniqueId: Nat = 0;
 
-    public func newEntry(author0: Nat, title0: Text, content0: Text): async Nat {
+    func getUser(id: Principal): ?User {
+        func predicate(u: User): Bool {
+            u.id == id
+        };
+        Array.find(predicate, users)
+    };
+
+    func isAdmin(id: Principal): Bool {
+        switch (admin) {
+            case (null) {
+                return false;
+            };
+            case (?p) {
+                return p == id;
+            }
+        }
+    };
+
+    public shared(msg) func setAdmin(): async () {
+        switch (admin) {
+            case (null) {
+                admin := ?msg.caller;
+            };
+            case (?e) {};
+        }
+    };
+
+    public shared(msg) func setUserRole(id: Principal): async () {
+        if (isAdmin(msg.caller)) {
+            let u = getUser(id);
+            switch (u) {
+                case (null) {};
+                case (?u) {
+                    let newUser = {
+                        id = u.id;
+                        name = u.name;
+                        description = u.description;
+                        editor = true;
+                    };
+                    func predicate(c: User): Bool {
+                        c.id != u.id
+                    };
+                    users := Array.append<User>(Array.filter<User>(predicate, users), [newUser]);
+                };
+            }
+        }
+    };
+
+    public shared(msg) func createUser(name0: Text, desc0: Text): async () {
+        let user: User = {
+            id = msg.caller;
+            editor = false;
+            name = name0;
+            description = desc0;
+        };
+        users := Array.append<User>(users, [user]);
+    };
+
+    public shared(msg) func getUserList(): async [User] {
+        if (isAdmin(msg.caller)) {
+            return users;
+        } else {
+            return [];
+        }
+    };
+
+
+    public shared(msg) func newEntry(title0: Text, content0: Text): async Nat {
+        let u = getUser(msg.caller);
+        switch (u) {
+            case (null) {
+                return 0;
+            };
+            case (?u) {
+                if (u.editor == false) {
+                    return 0;
+                }
+            }
+        };
+
         uniqueId := uniqueId + 1;
         let entry: InternalEntry = {
             id = uniqueId;
-            author = author0;
+            author = msg.caller;
             content = content0;
             title = title0;
         };
@@ -44,10 +122,7 @@ actor {
 
         func gen(i: Nat): Entry {
             let e = entries[entries.len() - i - 1];
-            func predicate(u: User): Bool {
-                u.id == e.author
-            };
-            let a = Array.find(predicate, users);
+            let a = getUser(e.author);
 
             {
                 id = e.id;

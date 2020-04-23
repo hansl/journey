@@ -17,6 +17,6 @@
       "serve_root": "canisters/journey/assets"
     }
   },
-  "dfx": "0.5.4",
+  "dfx": "0.5.5",
   "version": 1
 }
