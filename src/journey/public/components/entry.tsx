@@ -11,6 +11,9 @@ import * as React from 'react';
 import { useEffect, useState } from 'react';
 import { Link, Redirect, useParams } from 'react-router-dom';
 
+declare const require: any;
+const markdown = require('markdown').markdown;
+
 interface UserIdl {
   id: { toNumber(): number };
   name: string;
@@ -19,7 +22,8 @@ interface UserIdl {
 
 interface EntryIdl {
   author: [UserIdl?];
-  content: string;
+  header: string;
+  content: [string?];
   title: string;
   id: { toNumber(): number };
 }
@@ -29,12 +33,11 @@ export function NewEntry() {
   const [title, setTitle] = useState('New Entry');
   const [done, setDone] = useState(false);
   const [saving, setSaving] = useState(false);
-  const author = 1;
 
   async function submit() {
     setSaving(true);
 
-    await journey.newEntry(author, title, content);
+    await journey.newEntry(title, content);
     setDone(true);
   }
 
@@ -72,7 +75,7 @@ export function Entry() {
       throw new Error('Invalid ID: ' + JSON.stringify(id));
     }
 
-    journey.get(natId).then((optEntry: EntryIdl[]) => {
+    journey.getEntry(natId).then((optEntry: EntryIdl[]) => {
       let [entry] = optEntry;
       if (!entry) {
         // TODO: move this to a 404/403.
@@ -90,7 +93,7 @@ export function Entry() {
     return (
       <div>
         <section><h1>{entry.title}</h1></section>
-        <section>{entry.content}</section>
+        <section dangerouslySetInnerHTML={{ __html: markdown.toHTML(entry.content[0] || entry.header)}}></section>
         By <span>{entry.author[0]?.name}</span>. <Link to="/">back</Link>
       </div>
     );
@@ -99,14 +102,11 @@ export function Entry() {
 
 export function EntrySummary(props: { entry: EntryIdl }) {
   const entry = props.entry;
-  const indexOfBreak = entry.content.indexOf('\n');
 
   return (
     <div>
       <h1>{entry.title}</h1>
-      <section>
-        {entry.content.slice(0, indexOfBreak > 0 ? indexOfBreak : undefined)}
-      </section>
+      <section dangerouslySetInnerHTML={{ __html: markdown.toHTML(entry.header) }}></section>
       By <span>{entry.author[0]?.name}</span>. <Link to={'/entry/' + entry.id}>view</Link>
     </div>
   );
@@ -116,7 +116,7 @@ export function EntryList() {
   const [entryList, setEntryList] = useState([] as EntryIdl[]);
 
   useEffect(() => {
-    journey.list(10).then((list: EntryIdl[]) => setEntryList(list));
+    journey.listEntries(10).then((list: EntryIdl[]) => setEntryList(list));
   });
 
   return (

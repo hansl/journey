@@ -1,3 +1,4 @@
+import Prim "mo:prim";
 import Array "mo:stdlib/array";
 import Types "./types";
 
@@ -7,8 +8,6 @@ type User = Types.User;
 
 
 actor {
-
-    var admin: ?Principal = null;
 
     var entries: [InternalEntry] = [];
     // TODO: Change this to a hash map.
@@ -23,36 +22,30 @@ actor {
     };
 
     func isAdmin(id: Principal): Bool {
-        switch (admin) {
+        switch (getUser(id)) {
             case (null) {
                 return false;
             };
-            case (?p) {
-                return p == id;
+            case (?u) {
+                switch (u.role) {
+                    case (#admin) { return true; };
+                    case (_) { return false; };
+                }
             }
         }
     };
 
-    public shared(msg) func setAdmin(): async () {
-        switch (admin) {
-            case (null) {
-                admin := ?msg.caller;
-            };
-            case (?e) {};
-        }
-    };
-
-    public shared(msg) func setUserRole(id: Principal): async () {
+    public shared(msg) func setUserRole(id: Principal, role0: Types.UserRole): async () {
         if (isAdmin(msg.caller)) {
             let u = getUser(id);
             switch (u) {
                 case (null) {};
                 case (?u) {
-                    let newUser = {
+                    let newUser: User = {
                         id = u.id;
                         name = u.name;
                         description = u.description;
-                        editor = true;
+                        role = role0;
                     };
                     func predicate(c: User): Bool {
                         c.id != u.id
@@ -64,9 +57,10 @@ actor {
     };
 
     public shared(msg) func createUser(name0: Text, desc0: Text): async () {
+        let role0: Types.UserRole = if (entries.len() == 0) { #admin } else { #base };
         let user: User = {
             id = msg.caller;
-            editor = false;
+            role = role0;
             name = name0;
             description = desc0;
         };
@@ -81,16 +75,39 @@ actor {
         }
     };
 
+    func entryHeader(content: Text): Text {
+        let chars = content.chars();
+        var text = "";
+        var first = false;  // Indication that we saw a \n in the last character.
+        label w for (c in chars) {
+            if (c == '\r') {
+                continue w;
+            };
+            if (c == '\n') {
+                if (first) {
+                    break w;
+                } else {
+                    first := true;
+                }
+            } else {
+                first := false;
+            };
+            text := text # Prim.charToText(c);
+        };
 
-    public shared(msg) func newEntry(title0: Text, content0: Text): async Nat {
+        text
+    };
+
+    public shared(msg) func newEntry(title0: Text, content0: Text): async () {
         let u = getUser(msg.caller);
         switch (u) {
             case (null) {
-                return 0;
+                return;
             };
             case (?u) {
-                if (u.editor == false) {
-                    return 0;
+                switch (u.role) {
+                    case (#admin or #editor) {};
+                    case (_) { return; }
                 }
             }
         };
@@ -103,15 +120,13 @@ actor {
             title = title0;
         };
         entries := Array.append<InternalEntry>(entries, [entry]);
-
-        uniqueId
     };
 
     public func listUsers(): async [User] {
         users
     };
 
-    public query func list(max: Nat): async [Entry] {
+    public query func listEntries(max: Nat): async [Entry] {
         var m = max;
         if (entries.len() == 0) {
             return [];
@@ -128,13 +143,14 @@ actor {
                 id = e.id;
                 author = a;
                 title = e.title;
-                content = e.content;
+                header = entryHeader(e.content);
+                content = null;
             }
         };
         Array.tabulate<Entry>(m, gen)
     };
 
-    public query func get(id0: Nat): async ?Entry {
+    public query func getEntry(id0: Nat): async ?Entry {
         func isEq(entry: InternalEntry): Bool {
             entry.id == id0
         };
@@ -153,7 +169,8 @@ actor {
                     id = e.id;
                     author = a;
                     title = e.title;
-                    content = e.content;
+                    header = entryHeader(e.content);
+                    content = ?e.content;
                 };
             };
         };
